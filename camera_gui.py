@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen
 
-from socket_handler import SocketHandler
+from uart_handler import UartHandler
 
 
 class CameraLabel(QLabel):
@@ -33,7 +33,7 @@ class CameraLabel(QLabel):
 class CameraGUI(QMainWindow):
     """Main GUI window for arm control with camera feed"""
     
-    def __init__(self, rpi_host='192.168.1.100', rpi_port=5000):
+    def __init__(self, rpi_port='COM3', rpi_baudrate=9600):
         super().__init__()
         self.setWindowTitle("Robotic Arm Control Interface")
         self.resize(1000, 750)
@@ -53,13 +53,13 @@ class CameraGUI(QMainWindow):
         # Capture region
         self.captured_roi = None
 
-        # Socket communication
-        self.socket_handler = SocketHandler(rpi_host, rpi_port)
-        self.socket_handler.connection_status.connect(self.on_connection_status)
+        # UART communication
+        self.uart_handler = UartHandler(rpi_port, rpi_baudrate)
+        self.uart_handler.connection_status.connect(self.on_connection_status)
         
-        # Start socket connection in background thread
-        self.socket_thread = threading.Thread(target=self.socket_handler.connect, daemon=True)
-        self.socket_thread.start()
+        # Start UART connection in background thread
+        self.uart_thread = threading.Thread(target=self.uart_handler.connect, daemon=True)
+        self.uart_thread.start()
 
         # UI Setup
         self._setup_ui()
@@ -136,9 +136,9 @@ class CameraGUI(QMainWindow):
             QMessageBox.critical(self, "Camera Error", f"Failed to open camera: {e}")
 
     def on_connection_status(self, connected):
-        """Handle RPi connection status updates"""
+        """Handle RPi UART connection status updates"""
         status = "🟢 Connected" if connected else "🔴 Disconnected"
-        print(f"[Connection] RPi: {status}")
+        print(f"[Connection] RPi UART: {status}")
 
     def on_key_pressed(self, key):
         """Handle keyboard input events"""
@@ -173,7 +173,7 @@ class CameraGUI(QMainWindow):
         print(f"[Capture] Object captured at ({frame_x}, {frame_y})")
         
         # Send capture command to RPi
-        self.socket_handler.send_capture(frame_x, frame_y)
+        self.uart_handler.send_capture(frame_x, frame_y)
 
     def compute_direction(self, w, h):
         """
@@ -261,12 +261,12 @@ class CameraGUI(QMainWindow):
 
         # Compute and send direction to RPi
         angle, speed = self.compute_direction(w, h)
-        self.socket_handler.send_command(angle, speed)
+        self.uart_handler.send_command(angle, speed)
 
     def closeEvent(self, event):
         """Cleanup resources on window close"""
         self.timer.stop()
         if self.cap:
             self.cap.release()
-        self.socket_handler.disconnect()
+        self.uart_handler.disconnect()
         event.accept()

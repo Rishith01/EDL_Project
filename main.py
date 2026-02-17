@@ -13,20 +13,20 @@ def main():
     Initialize and run the application
     
     Configuration:
-    - RPi IP address and port can be modified here
+    - UART Port and baud rate can be modified here
     """
     app = QApplication(sys.argv)
     
-    # Configure RPi connection details
-    RPi_HOST = '192.168.1.100'  # Change to your RPi IP address
-    RPi_PORT = 5000              # Change to your RPi server port
+    # Configure RPi UART connection details
+    RPi_PORT = 'COM3'      # Change to your serial port (e.g., 'COM3' on Windows, '/dev/ttyUSB0' on Linux)
+    RPi_BAUDRATE = 9600    # Change to your RPi UART baud rate
     
     # Create and show main window
-    window = CameraGUI(rpi_host=RPi_HOST, rpi_port=RPi_PORT)
+    window = CameraGUI(rpi_port=RPi_PORT, rpi_baudrate=RPi_BAUDRATE)
     window.show()
     
     print("[App] Robotic Arm Control Interface started")
-    print(f"[App] RPi connection configured: {RPi_HOST}:{RPi_PORT}")
+    print(f"[App] RPi UART connection configured: {RPi_PORT} at {RPi_BAUDRATE} baud")
     print("[App] Controls:")
     print("  - Mouse: Move pointer to control arm direction")
     print("  - K key: Capture object at mouse position")

@@ -8,23 +8,23 @@ from PyQt5.QtWidgets import QApplication
 from camera_gui import CameraGUI
 
 
-def run_gui(rpi_host='192.168.1.100', rpi_port=5000):
+def run_gui(rpi_port='COM3', rpi_baudrate=9600):
     """
     Launch the GUI application
     
     Args:
-        rpi_host (str): RPi IP address
-        rpi_port (int): RPi server port
+        rpi_port (str): Serial port name (e.g., 'COM3' on Windows, '/dev/ttyUSB0' on Linux)
+        rpi_baudrate (int): Baud rate for UART communication
     """
     app = QApplication(sys.argv)
-    window = CameraGUI(rpi_host=rpi_host, rpi_port=rpi_port)
+    window = CameraGUI(rpi_port=rpi_port, rpi_baudrate=rpi_baudrate)
     window.show()
     sys.exit(app.exec_())
 
 
 if __name__ == "__main__":
-    # Configure RPi connection details
-    RPi_HOST = '192.168.1.100'  # Change to your RPi IP address
-    RPi_PORT = 5000              # Change to your RPi server port
+    # Configure RPi UART connection details
+    RPi_PORT = 'COM5'      # Change to your serial port (e.g., 'COM3' on Windows, '/dev/ttyUSB0' on Linux)
+    RPi_BAUDRATE = 9600    # Change to your RPi UART baud rate
     
-    run_gui(rpi_host=RPi_HOST, rpi_port=RPi_PORT)
+    run_gui(rpi_port=RPi_PORT, rpi_baudrate=RPi_BAUDRATE)

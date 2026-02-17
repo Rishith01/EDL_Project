@@ -1,48 +1,52 @@
 """
-TCP Socket Handler for Robotic Arm Control
-Handles communication with RPi over sockets in a thread-safe manner
+UART Handler for Robotic Arm Control
+Handles communication with RPi over UART in a thread-safe manner
 """
 
-import socket
+import serial
 import threading
 from PyQt5.QtCore import QObject, pyqtSignal
 
 
-class SocketHandler(QObject):
-    """Handles TCP socket communication with RPi in a separate thread"""
+class UartHandler(QObject):
+    """Handles UART serial communication with RPi in a separate thread"""
     connection_status = pyqtSignal(bool)  # Signal: True=connected, False=disconnected
     
-    def __init__(self, host='192.168.1.100', port=5000):
+    def __init__(self, port='COM3', baudrate=9600):
         """
-        Initialize socket handler
+        Initialize UART handler
         
         Args:
-            host (str): RPi IP address
-            port (int): RPi server port
+            port (str): Serial port name (e.g., 'COM3' on Windows, '/dev/ttyUSB0' on Linux)
+            baudrate (int): Baud rate for serial communication (default: 9600)
         """
         super().__init__()
-        self.host = host
         self.port = port
-        self.socket = None
+        self.baudrate = baudrate
+        self.serial = None
         self.is_connected = False
         self.lock = threading.Lock()
     
     def connect(self):
         """
-        Connect to RPi server
+        Open UART serial connection to RPi
         
         Returns:
             bool: True if connection successful, False otherwise
         """
         try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.connect((self.host, self.port))
+            self.serial = serial.Serial(
+                port=self.port,
+                baudrate=self.baudrate,
+                timeout=1.0,
+                write_timeout=1.0
+            )
             self.is_connected = True
             self.connection_status.emit(True)
-            print(f"[Socket] Connected to RPi at {self.host}:{self.port}")
+            print(f"[UART] Connected to RPi on {self.port} at {self.baudrate} baud")
             return True
         except Exception as e:
-            print(f"[Socket] Connection failed: {e}")
+            print(f"[UART] Connection failed: {e}")
             self.is_connected = False
             self.connection_status.emit(False)
             return False
@@ -56,15 +60,15 @@ class SocketHandler(QObject):
             angle (float): Direction angle in radians
             speed (float): Speed magnitude (0.0 to 1.0)
         """
-        if not self.is_connected or self.socket is None:
+        if not self.is_connected or self.serial is None:
             return
         
         try:
             with self.lock:
                 message = f"ANGLE:{angle:.2f},SPEED:{speed:.2f}\n"
-                self.socket.sendall(message.encode())
+                self.serial.write(message.encode())
         except Exception as e:
-            print(f"[Socket] Send command failed: {e}")
+            print(f"[UART] Send command failed: {e}")
             self.is_connected = False
             self.connection_status.emit(False)
     
@@ -77,25 +81,26 @@ class SocketHandler(QObject):
             x (int): X coordinate in frame
             y (int): Y coordinate in frame
         """
-        if not self.is_connected or self.socket is None:
+        if not self.is_connected or self.serial is None:
             return
         
         try:
             with self.lock:
                 message = f"CAPTURE:{x},{y}\n"
-                self.socket.sendall(message.encode())
-                print(f"[Socket] Capture command sent: ({x}, {y})")
+                self.serial.write(message.encode())
+                print(f"[UART] Capture command sent: ({x}, {y})")
         except Exception as e:
-            print(f"[Socket] Send capture failed: {e}")
+            print(f"[UART] Send capture failed: {e}")
             self.is_connected = False
             self.connection_status.emit(False)
     
     def disconnect(self):
-        """Close socket connection"""
-        if self.socket:
+        """Close serial connection"""
+        if self.serial:
             try:
-                self.socket.close()
-                print("[Socket] Disconnected")
+                if self.serial.is_open:
+                    self.serial.close()
+                print("[UART] Disconnected")
             except:
                 pass
             self.socket = None
