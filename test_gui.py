@@ -33,6 +33,7 @@ def test_gui_initialization():
     print(f"  ✓ GUI instance created")
     print(f"    - Title: {gui.windowTitle()}")
     print(f"    - Size: {gui.width()}x{gui.height()}")
+    gui.close()
 
 
 def test_gui_camera_detection():
@@ -41,6 +42,7 @@ def test_gui_camera_detection():
     app = QApplication.instance() or QApplication(sys.argv)
     
     gui = CameraGUI(rpi_port='COM5', rpi_baudrate=9600)
+    gui.close()
     print(f"  ✓ Camera detection results:")
     print(f"    - Cameras found: {gui.available_cameras}")
     print(f"    - Dropdown items: {gui.camera_selector.count()}")
@@ -62,6 +64,7 @@ def test_gui_properties():
     print(f"    - Camera selector visible: {gui.camera_selector.isVisible()}")
     print(f"    - Timer active: {gui.timer.isActive()}")
     print(f"    - Initial mouse position: ({gui.mouse_x}, {gui.mouse_y})")
+    gui.close()
 
 
 def test_direction_computation():
@@ -70,7 +73,7 @@ def test_direction_computation():
     app = QApplication.instance() or QApplication(sys.argv)
     
     gui = CameraGUI(rpi_port='COM5', rpi_baudrate=9600)
-    
+    gui.close()
     # Setup test conditions
     gui.label_width = 800
     gui.label_height = 600
@@ -85,9 +88,8 @@ def test_direction_computation():
     ]
     
     for name, mouse_x, mouse_y, desc in test_cases:
-        gui.mouse_x = mouse_x
-        gui.mouse_y = mouse_y
-        angle, speed = gui.compute_direction(frame_width, frame_height)
+        gui.on_mouse_moved(mouse_x, mouse_y)
+        angle, speed = gui.compute_direction()
         print(f"    - {name}: angle={angle:.2f}rad, speed={speed:.2f} ({desc})")
 
 
@@ -97,39 +99,37 @@ def test_capture_roi_calculation():
     app = QApplication.instance() or QApplication(sys.argv)
     
     gui = CameraGUI(rpi_port='COM5', rpi_baudrate=9600)
+    gui.close()
     
-    # Create dummy frame
-    if gui.cap is not None and gui.cap.isOpened():
-        gui.mouse_x = 320
-        gui.mouse_y = 240
-        gui.label_width = 800
-        gui.label_height = 600
-        
-        # Simulate capture coordinates
-        h, w = 480, 640
-        frame_x = int(gui.mouse_x * w / gui.label_width)
-        frame_y = int(gui.mouse_y * h / gui.label_height)
-        
-        size = 60
-        x1 = max(0, frame_x - size)
-        y1 = max(0, frame_y - size)
-        x2 = min(w, frame_x + size)
-        y2 = min(h, frame_y + size)
-        
-        print(f"  ✓ ROI calculation:")
-        print(f"    - Mouse position: ({gui.mouse_x}, {gui.mouse_y})")
-        print(f"    - Frame coordinates: ({frame_x}, {frame_y})")
-        print(f"    - ROI bounds: ({x1},{y1}) to ({x2},{y2})")
-    else:
-        print(f"  - Camera not available, skipping ROI test")
+    gui.mouse_x = 320
+    gui.mouse_y = 240
+    gui.label_width = 800
+    gui.label_height = 600
+    
+    # Simulate capture coordinates
+    h, w = 480, 640
+    frame_x = int(gui.mouse_x * w / gui.label_width)
+    frame_y = int(gui.mouse_y * h / gui.label_height)
+    
+    size = 60
+    x1 = max(0, frame_x - size)
+    y1 = max(0, frame_y - size)
+    x2 = min(w, frame_x + size)
+    y2 = min(h, frame_y + size)
+    
+    print(f"  ✓ ROI calculation:")
+    print(f"    - Mouse position: ({gui.mouse_x}, {gui.mouse_y})")
+    print(f"    - Frame coordinates: ({frame_x}, {frame_y})")
+    print(f"    - ROI bounds: ({x1},{y1}) to ({x2},{y2})")
+    
 
-
-def test_gui_with_display(duration_seconds=5):
+def test_gui_with_display(duration_seconds=10):
     """Test 7: GUI display and event loop"""
     print(f"\n[Test 7] Running GUI with display ({duration_seconds} seconds)...")
     app = QApplication.instance() or QApplication(sys.argv)
     
     gui = CameraGUI(rpi_port='COM5', rpi_baudrate=9600)
+    gui.close()
     gui.show()
     print(f"  ✓ GUI window displayed")
     print(f"    - Frame update timer running")
@@ -138,6 +138,7 @@ def test_gui_with_display(duration_seconds=5):
     # Close after specified duration
     QTimer.singleShot(duration_seconds * 1000, app.quit)
     app.exec_()
+    gui.close()
     
     print(f"  ✓ Event loop completed after {duration_seconds} seconds")
 
@@ -157,11 +158,11 @@ if __name__ == "__main__":
         test_capture_roi_calculation()
         
         # Optional: test with display (comment out if you don't want GUI window)
-        response = input("\nRun GUI display test? (y/n, default=n): ").strip().lower()
-        if response == 'y':
-            test_gui_with_display(duration_seconds=5)
-        else:
-            print("  - Skipping display test")
+        # response = input("\nRun GUI display test? (y/n, default=n): ").strip().lower()
+        # if response == 'y':
+        test_gui_with_display(duration_seconds=10)
+        # else:
+        #     print("  - Skipping display test")
         
         print("\n" + "=" * 70)
         print("✓ All GUI tests completed!")

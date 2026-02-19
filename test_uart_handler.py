@@ -5,13 +5,16 @@ Usage: python test_uart_handler.py
 """
 
 from uart_handler import UartHandler
+from PyQt5.QtCore import QCoreApplication
+import sys
 
+app = QCoreApplication(sys.argv)
 
 def test_uart_initialization():
     """Test 1: UART handler creation"""
     print("\n[Test 1] Creating UART handler...")
-    handler = UartHandler(port='COM3', baudrate=9600)
-    assert handler.port == 'COM3'
+    handler = UartHandler(port='COM5', baudrate=9600)
+    assert handler.port == 'COM5'
     assert handler.baudrate == 9600
     assert handler.is_connected == False
     print("✓ Handler created successfully")
@@ -21,7 +24,7 @@ def test_uart_initialization():
 def test_uart_connection():
     """Test 2: Connect to UART (may fail if RPi not connected)"""
     print("\n[Test 2] Testing UART connection...")
-    handler = UartHandler(port='COM3', baudrate=9600)
+    handler = UartHandler(port='COM5', baudrate=9600)
     result = handler.connect()
     if result:
         print("✓ Connected successfully to UART")
@@ -33,7 +36,7 @@ def test_uart_connection():
 def test_uart_send_command():
     """Test 3: Send direction command"""
     print("\n[Test 3] Testing send_command()...")
-    handler = UartHandler(port='COM3', baudrate=9600)
+    handler = UartHandler(port='COM5', baudrate=9600)
     
     if handler.connect():
         # Send test command
@@ -47,7 +50,7 @@ def test_uart_send_command():
 def test_uart_send_capture():
     """Test 4: Send capture command"""
     print("\n[Test 4] Testing send_capture()...")
-    handler = UartHandler(port='COM3', baudrate=9600)
+    handler = UartHandler(port='COM5', baudrate=9600)
     
     if handler.connect():
         # Send test capture

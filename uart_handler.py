@@ -12,12 +12,12 @@ class UartHandler(QObject):
     """Handles UART serial communication with RPi in a separate thread"""
     connection_status = pyqtSignal(bool)  # Signal: True=connected, False=disconnected
     
-    def __init__(self, port='COM3', baudrate=9600):
+    def __init__(self, port='COM5', baudrate=9600):
         """
         Initialize UART handler
         
         Args:
-            port (str): Serial port name (e.g., 'COM3' on Windows, '/dev/ttyUSB0' on Linux)
+            port (str): Serial port name (e.g., 'COM5' on Windows, '/dev/ttyUSB0' on Linux)
             baudrate (int): Baud rate for serial communication (default: 9600)
         """
         super().__init__()
@@ -60,7 +60,7 @@ class UartHandler(QObject):
             angle (float): Direction angle in radians
             speed (float): Speed magnitude (0.0 to 1.0)
         """
-        if not self.is_connected or self.serial is None:
+        if not self.is_connected or self.serial is None or not self.serial.is_open:
             return
         
         try:
@@ -81,7 +81,7 @@ class UartHandler(QObject):
             x (int): X coordinate in frame
             y (int): Y coordinate in frame
         """
-        if not self.is_connected or self.serial is None:
+        if not self.is_connected or self.serial is None or not self.serial.is_open:
             return
         
         try:
@@ -93,15 +93,18 @@ class UartHandler(QObject):
             print(f"[UART] Send capture failed: {e}")
             self.is_connected = False
             self.connection_status.emit(False)
-    
+        
     def disconnect(self):
         """Close serial connection"""
-        if self.serial:
-            try:
-                if self.serial.is_open:
-                    self.serial.close()
-                print("[UART] Disconnected")
-            except:
-                pass
-            self.socket = None
-            self.is_connected = False
+        with self.lock:
+            if self.serial:
+                try:
+                    if self.serial.is_open:
+                        self.serial.close()
+                    print("[UART] Disconnected")
+                except Exception as e:
+                    print(f"[UART] Disconnect error: {e}")
+
+                self.serial = None
+                self.is_connected = False
+                self.connection_status.emit(False)
