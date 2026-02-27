@@ -54,8 +54,8 @@ def test_uart_send_capture():
     
     if handler.connect():
         # Send test capture
-        handler.send_capture(x=320, y=240)
-        print("✓ Capture sent: CAPTURE:320,240")
+        handler.send_capture()
+        print("✓ Capture sent: CAPTURE")
         handler.disconnect()
     else:
         print("✗ Cannot test - UART not connected")
@@ -73,9 +73,8 @@ def test_uart_message_formats():
     print(f"✓ Command format correct: {msg_cmd.strip()}")
     
     # Test capture format
-    x, y = 100, 200
-    msg_cap = f"CAPTURE:{x},{y}\n"
-    expected_cap = "CAPTURE:100,200\n"
+    msg_cap = "CAPTURE\n"
+    expected_cap = "CAPTURE\n"
     assert msg_cap == expected_cap
     print(f"✓ Capture format correct: {msg_cap.strip()}")
 

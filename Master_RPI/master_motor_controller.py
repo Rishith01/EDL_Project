@@ -19,9 +19,9 @@ class MotorDirection(Enum):
 
 class MotorController:
     """
-    Main motor controller for 8 motors:
-    - Motors 0-1: Tentacle end effector
-    - Motors 2-7: Continuum robot joints
+    Main motor controller uses the configuration in master_config.  The
+    expected setup is nine motors: lead screw, six continuum joints and two
+    tentacle motors (see config for details).
     """
 
     def __init__(self, pwm_address=PWM_GENERATOR_ADDRESS, gpio_expander_1_address=GPIO_EXPANDER_1_ADDRESS,
@@ -49,6 +49,9 @@ class MotorController:
 
         # Limit switch states
         self.limit_switches = [False] * NUM_LIMIT_SWITCHES
+
+        # Keep a history of forward commands so we can retrace
+        self.forward_history = []
 
         # Control thread
         self.control_thread = None
@@ -105,10 +108,13 @@ class MotorController:
 
     def set_motor_speed(self, motor_id, speed, direction):
         """
-        Set speed and direction for a specific motor
+        Set speed and direction for a specific motor.
+
+        If any limit switch mapped to this motor is currently triggered the
+        command will be ignored (motor remains stopped) and a warning printed.
 
         Args:
-            motor_id (int): Motor ID (0-7)
+            motor_id (int): Motor ID (0 to NUM_MOTORS-1)
             speed (float): Speed (0.0 to 1.0)
             direction (MotorDirection): Motor direction
         """
@@ -116,8 +122,21 @@ class MotorController:
             print(f"[MotorController] Invalid motor ID: {motor_id}")
             return
 
-        # Convert speed to PWM duty cycle (0-PWM_MAX_VALUE)
-        pwm_value = int(speed * PWM_MAX_VALUE)
+        # check limit switches for this motor
+        blocked = False
+        if motor_id in MOTOR_TO_LIMIT_SWITCHES:
+            for sw in MOTOR_TO_LIMIT_SWITCHES[motor_id]:
+                if sw < len(self.limit_switches) and self.limit_switches[sw]:
+                    blocked = True
+                    print(f"[MotorController] Motor {motor_id} blocked by limit switch {sw}")
+                    break
+        if blocked:
+            # force stop
+            pwm_value = 0
+            direction = MotorDirection.STOP
+        else:
+            # Convert speed to PWM duty cycle (0-PWM_MAX_VALUE)
+            pwm_value = int(speed * PWM_MAX_VALUE)
 
         self.motor_speeds[motor_id] = pwm_value
         self.motor_directions[motor_id] = direction
@@ -140,7 +159,7 @@ class MotorController:
 
             # Set direction via GPIO expander
             current_directions = 0
-            for i in range(8):
+            for i in range(NUM_MOTORS):
                 if self.motor_directions[i] == MotorDirection.FORWARD:
                     current_directions |= (1 << i)
 
@@ -151,13 +170,13 @@ class MotorController:
         """Read encoder values from slave RPi"""
         if self.i2c_bus:
             try:
-                # Read 16 bytes (2 bytes per encoder * 8 encoders)
+                # read 2 bytes per encoder * NUM_MOTORS encoders
                 data = []
-                for i in range(16):
+                for i in range(NUM_MOTORS * 2):
                     data.append(self.i2c_bus.read_byte_data(self.slave_rpi_address, i))
 
                 # Convert to 16-bit values
-                for i in range(8):
+                for i in range(NUM_MOTORS):
                     self.encoder_values[i] = (data[i*2] << 8) | data[i*2 + 1]
 
             except Exception as e:
@@ -181,54 +200,105 @@ class MotorController:
 
         return self.limit_switches.copy()
 
-    def process_direction_command(self, angle, speed):
+    def process_direction_command(self, direction_or_angle, speed, forward=None):
         """
-        Process direction command from GUI and translate to motor commands
+        Process incoming command. Supports both:
+        * legacy mode: call with (angle, speed)
+        * new mode: call with (direction, speed, forward)
 
-        Args:
-            angle (float): Direction angle in radians
-            speed (float): Speed magnitude (0.0 to 1.0)
+        Args (legacy):
+            direction_or_angle (float): direction angle in radians
+            speed (float): magnitude (0.0 to 1.0)
+        Args (new):
+            direction_or_angle (str): one of 'forward','backward','left','right','up','down'
+            speed (float): lateral magnitude
+            forward (float): forward/backward component
         """
-        # Convert angle to degrees for easier processing
-        angle_deg = math.degrees(angle) % 360
+        # update limit switch readings so set_motor_speed can use them
+        _ = self.read_limit_switches()
 
-        # Basic motor mapping for continuum robot (motors 2-7)
-        # This is a simplified mapping - adjust based on your robot kinematics
+        # if caller didn't provide forward, treat as legacy command
+        if forward is None:
+            angle = direction_or_angle
+            speed_val = speed
+            forward = max(0.0, 1.0 - speed_val)
 
-        # Stop all motors first
+            # derive cardinal direction from angle
+            angle_deg = math.degrees(angle) % 360
+            if 45 <= angle_deg < 135:
+                direction = 'up'
+            elif 135 <= angle_deg < 225:
+                direction = 'left'
+            elif 225 <= angle_deg < 315:
+                direction = 'down'
+            elif 315 <= angle_deg or angle_deg < 45:
+                direction = 'right'
+            else:
+                direction = 'forward'
+        else:
+            direction = direction_or_angle
+            speed_val = speed
+
+        # record forward component for later retrace
+        if forward > DEAD_ZONE_THRESHOLD:
+            self.forward_history.append(forward)
+
+        # lead-screw always driven by forward component
+        if forward > 0:
+            self.set_motor_speed(LEAD_SCREW_MOTOR, forward, MotorDirection.FORWARD)
+        else:
+            self.set_motor_speed(LEAD_SCREW_MOTOR, 0, MotorDirection.STOP)
+
+        # stop non-lead motors first
         for i in range(NUM_MOTORS):
+            if i == LEAD_SCREW_MOTOR:
+                continue
             self.set_motor_speed(i, 0, MotorDirection.STOP)
 
-        if speed < DEAD_ZONE_THRESHOLD:  # Dead zone
+        if speed_val < DEAD_ZONE_THRESHOLD and direction not in ('forward','backward'):
             return
 
-        # Direction-based motor control
-        if 0 <= angle_deg < 45 or 315 <= angle_deg < 360:
-            # Forward/Right
-            self.set_motor_speed(2, speed * 0.8, MotorDirection.FORWARD)  # Joint 1
-            self.set_motor_speed(3, speed * 0.6, MotorDirection.REVERSE)  # Joint 2
-        elif 45 <= angle_deg < 135:
-            # Up
-            self.set_motor_speed(4, speed * 0.7, MotorDirection.FORWARD)  # Joint 3
-            self.set_motor_speed(5, speed * 0.5, MotorDirection.FORWARD)  # Joint 4
-        elif 135 <= angle_deg < 225:
-            # Left
-            self.set_motor_speed(2, speed * 0.8, MotorDirection.REVERSE)  # Joint 1
-            self.set_motor_speed(3, speed * 0.6, MotorDirection.FORWARD)  # Joint 2
-        elif 225 <= angle_deg < 315:
-            # Down
-            self.set_motor_speed(4, speed * 0.7, MotorDirection.REVERSE)  # Joint 3
-            self.set_motor_speed(5, speed * 0.5, MotorDirection.REVERSE)  # Joint 4
+        # continuum motor mapping
+        if direction == 'right':
+            self.set_motor_speed(1, speed_val * 0.8, MotorDirection.FORWARD)
+            self.set_motor_speed(2, speed_val * 0.8, MotorDirection.REVERSE)
+        elif direction == 'left':
+            self.set_motor_speed(1, speed_val * 0.8, MotorDirection.REVERSE)
+            self.set_motor_speed(2, speed_val * 0.8, MotorDirection.FORWARD)
+        elif direction == 'up':
+            self.set_motor_speed(3, speed_val * 0.7, MotorDirection.FORWARD)
+            self.set_motor_speed(4, speed_val * 0.7, MotorDirection.FORWARD)
+        elif direction == 'down':
+            self.set_motor_speed(3, speed_val * 0.7, MotorDirection.REVERSE)
+            self.set_motor_speed(4, speed_val * 0.7, MotorDirection.REVERSE)
+        elif direction == 'backward':
+            self.set_motor_speed(LEAD_SCREW_MOTOR, forward, MotorDirection.REVERSE)
+        # 'forward' case: already handled by lead screw
 
-        # Tentacle end effector control (motors 0-1) - simplified
-        # Could be controlled separately or based on angle
-        if speed > 0.5:
-            self.set_motor_speed(0, speed * 0.3, MotorDirection.FORWARD)  # Tentacle motor 1
-            self.set_motor_speed(1, speed * 0.3, MotorDirection.REVERSE)  # Tentacle motor 2
+        # tentacle logic
+        if speed_val > 0.5:
+            self.set_motor_speed(7, speed_val * 0.3, MotorDirection.FORWARD)
+            self.set_motor_speed(8, speed_val * 0.3, MotorDirection.REVERSE)
 
         if DEBUG_MODE:
-            print(f"[MotorController] Direction: {angle_deg:.1f}°, Speed: {speed:.2f}")
+            print(f"[MotorController] Dir: {direction}, lat-spd: {speed_val:.2f}, fwd: {forward:.2f}")
             print(f"[MotorController] Active motors: {[i for i, s in enumerate(self.motor_speeds) if s > 0]}")
+
+    def retrace_forward_history(self):
+        """
+        Drive the lead screw in reverse following the recorded forward_history.
+        After replaying, clear the history.
+        """
+        total = sum(self.forward_history)
+        if total <= 0:
+            return
+        print(f"[MotorController] Retracing forward movement ({total:.2f})")
+        reverse_speed = 0.5
+        duration = total
+        self.set_motor_speed(LEAD_SCREW_MOTOR, reverse_speed, MotorDirection.REVERSE)
+        time.sleep(duration)
+        self.set_motor_speed(LEAD_SCREW_MOTOR, 0, MotorDirection.STOP)
+        self.forward_history.clear()
 
     def start_control_loop(self):
         """Start the motor control and monitoring loop"""
@@ -273,7 +343,7 @@ class MotorController:
     def emergency_stop(self):
         """Emergency stop all motors"""
         print("[MotorController] EMERGENCY STOP!")
-        for i in range(8):
+        for i in range(NUM_MOTORS):
             self.set_motor_speed(i, 0, MotorDirection.STOP)
 
     def get_status(self):

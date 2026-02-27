@@ -7,6 +7,7 @@ import time
 import math
 from master_motor_controller import MotorController, MotorDirection
 from master_command_processor import CommandProcessor
+from master_config import NUM_MOTORS
 
 
 def test_motor_controller():
@@ -22,20 +23,27 @@ def test_motor_controller():
 
     # Test motor speed setting
     print("\nTesting motor speed control...")
-    for motor_id in range(8):
+    for motor_id in range(NUM_MOTORS):
         controller.set_motor_speed(motor_id, 0.5, MotorDirection.FORWARD)
         print(f"Set motor {motor_id} to 50% speed, FORWARD")
 
-    # Test direction commands
+    # Test direction commands, covering both legacy and new messages
     print("\nTesting direction commands...")
-    test_angles = [0, math.pi/4, math.pi/2, math.pi, 3*math.pi/2, 2*math.pi]
+    test_angles = [0, math.pi/4, math.pi/2, math.pi, 3*math.pi/2]
     test_speeds = [0.2, 0.5, 0.8]
-
     for angle in test_angles:
         for speed in test_speeds:
-            print(f"Testing angle: {math.degrees(angle):.1f}°, speed: {speed}")
+            print(f"Legacy: angle {math.degrees(angle):.1f}°, speed {speed}")
             controller.process_direction_command(angle, speed)
-            time.sleep(0.1)  # Brief pause
+            time.sleep(0.05)
+    # new cardinal commands
+    cardinal = ['forward', 'left', 'right', 'up', 'down', 'backward']
+    for d in cardinal:
+        for speed in test_speeds:
+            forward = 1.0 - speed if d != 'forward' else 1.0
+            print(f"New: dir {d}, speed {speed}, forward {forward}")
+            controller.process_direction_command(d, speed, forward)
+            time.sleep(0.05)
 
     # Test encoder reading (simulation)
     print("\nTesting encoder reading...")
@@ -71,9 +79,14 @@ def test_command_processor():
 
     # Test command parsing
     test_commands = [
+        # legacy
         "ANGLE:0.00,SPEED:0.50",
         "ANGLE:1.57,SPEED:0.80",  # π/2
         "ANGLE:-1.57,SPEED:0.30", # -π/2
+        # new
+        "DIR:FORWARD,SPEED:0.20,FWD:1.00",
+        "DIR:LEFT,SPEED:0.70,FWD:0.30",
+        "DIR:DOWN,SPEED:0.40,FWD:0.60",
         "CAPTURE",
         "INVALID:COMMAND"
     ]

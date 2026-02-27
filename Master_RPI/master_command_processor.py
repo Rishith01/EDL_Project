@@ -46,6 +46,8 @@ class CommandProcessor:
 
         # Command patterns
         self.angle_speed_pattern = re.compile(r'ANGLE:(-?\d+\.?\d*),SPEED:(\d+\.?\d*)')
+        # new cardinal format
+        self.dir_pattern = re.compile(r'DIR:([A-Z]+),SPEED:(\d+\.?\d*),FWD:(\d+\.?\d*)')
         self.capture_pattern = re.compile(r'CAPTURE$')
 
     def start(self):
@@ -118,6 +120,22 @@ class CommandProcessor:
         """Process incoming command from GUI"""
         print(f"[CommandProcessor] Received: {command}")
 
+        # first try new DIR style commands
+        dir_match = self.dir_pattern.search(command)
+        if dir_match:
+            dir_str, speed_str, fwd_str = dir_match.groups()
+            try:
+                direction = dir_str.lower()
+                speed = float(speed_str)
+                forward = float(fwd_str)
+                if not (0 <= speed <= 1.0) or not (0 <= forward <= 1.0):
+                    print(f"[CommandProcessor] Invalid magnitudes speed={speed}, forward={forward}")
+                    return
+                self.motor_controller.process_direction_command(direction, speed, forward)
+            except ValueError as e:
+                print(f"[CommandProcessor] Invalid direction command values: {e}")
+            return
+
         # Parse angle and speed command
         angle_speed_match = self.angle_speed_pattern.search(command)
         if angle_speed_match:
@@ -151,13 +169,10 @@ class CommandProcessor:
         """Process capture command (object detection/targeting)"""
         print("[CommandProcessor] Processing capture command")
 
-        # This could trigger special motor movements for object manipulation
-        # For now, just log it - extend based on your requirements
+        # after capture we want the arm to return along the same forward trajectory
+        self.motor_controller.retrace_forward_history()
 
-        # Example: Move tentacle end effector to capture position
-        # This would require coordinate transformation from camera to robot space
-        # self.motor_controller.set_motor_speed(0, 0.5, MotorDirection.FORWARD)
-        # self.motor_controller.set_motor_speed(1, 0.5, MotorDirection.REVERSE)
+        # additional capture handling could go here (e.g. operate tentacle motors)
 
     def get_status(self):
         """Get system status"""

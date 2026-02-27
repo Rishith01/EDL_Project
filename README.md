@@ -1,213 +1,129 @@
-# Robotic Arm Control Interface
+# Robotic Arm Control System
 
-A real-time GUI application for controlling a robotic arm using a connected camera (USB or webcam) and mouse input.
+This repository contains a distributed robotic arm control system with the following components:
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 EDL_Project/
-├── uart_handler.py        # UART communication with RPi
-├── camera_gui.py          # Main GUI and camera components
-├── arm_gui.py            # Alternative entry point (imports from camera_gui)
-├── main.py               # Primary entry point for the application
-├── test_uart_handler.py   # Unit test for UART module
-├── test_camera.py        # Unit test for camera detection
-├── test_direction.py     # Unit test for direction calculation
-├── test_gui.py           # Unit test for GUI components
-├── run_tests.py          # Master test runner for all tests
-├── TESTING_GUIDE.md      # Comprehensive testing documentation
-└── README.md             # This file
+├── GUI_interface/           # 🖥️  LAPTOP - GUI Application
+│   ├── arm_gui.py          # Main GUI launcher
+│   ├── camera_gui.py       # Camera control and user interface
+│   ├── uart_handler.py     # UART communication with Master RPi
+│   ├── test_uart_handler.py # UART handler tests
+│   ├── run_tests.py        # Test runner
+│   ├── test_*.py           # Various test files
+│   └── main.py             # Alternative entry point
+│
+├── Master_RPI/         # 🔧 MASTER RPi - Motor Control (single source of truth)
+│   ├── master_command_processor.py    # UART command processing
+│   ├── master_motor_controller.py     # Motor control logic
+│   ├── master_config.py              # Master RPi configuration
+│   ├── master_test_motor_controller.py # Master tests
+│   └── MASTER_README.md              # Master documentation
+│
+└── Slave_RPI/              # 📡 SLAVE RPi - Encoder Interface
+    ├── slave_encoder_interface.py   # Encoder reading and I2C
+    └── README.md                    # Slave documentation
 ```
 
-## Module Descriptions
+## 🖥️ GUI_interface (Laptop)
 
-### `uart_handler.py`
-Handles UART serial communication with the Raspberry Pi server.
+**Purpose:** User interface for camera control and direction commands
 
-**Key Classes:**
-- `UartHandler`: Manages UART connections, sends commands to RPi
+**Key Files:**
+- `camera_gui.py` - Main GUI with camera feed and mouse control
+- `uart_handler.py` - Sends commands to Master RPi via UART
+- `arm_gui.py` - GUI application launcher
 
-**Features:**
-- Thread-safe serial operations with locking
-- PyQt5 signals for connection status updates
-- Message formats:
-  - `ANGLE:<angle>,SPEED:<speed>\n` - Continuous arm direction
-  - `CAPTURE:<x>,<y>\n` - Object capture at coordinates
+**Communication:**
+- Sends direction commands: `ANGLE:<angle>,SPEED:<speed>`
+- Sends capture commands: `CAPTURE`
 
-**Usage:**
-```python
-from uart_handler import UartHandler
+## 🔧 Master_RPI (Master RPi)
 
-handler = UartHandler(port='COM3', baudrate=9600)
-handler.connect()
-handler.send_command(angle=1.57, speed=0.5)
-handler.send_capture(x=320, y=240)
-handler.disconnect()
-```
+**Purpose:** Main motor control system coordinating all slave devices
 
-### `camera_gui.py`
-Main GUI implementation with camera feed display and control handling.
+**Key Files:**
+- `master_command_processor.py` - Receives GUI commands via UART
+- `master_motor_controller.py` - Controls motors via PWM and GPIO
+- `master_config.py` - I2C addresses and system configuration
 
-**Key Classes:**
-- `CameraLabel`: Custom QLabel that captures keyboard events
-- `CameraGUI`: Main application window
+**Slave Communication:**
+- PWM Generator (PCA9685) - Motor speed control
+- GPIO Expander 1 (MCP23017) - Motor direction control
+- GPIO Expander 2 (MCP23017) - Limit switch monitoring
+- Slave RPi - Encoder feedback
 
-**Features:**
-- Real-time camera feed (USB or webcam)
-- Auto-detection of available cameras
-- Mouse-based arm direction control
-- Keyboard shortcuts (K for capture, ESC to exit)
-- Overlay graphics (crosshair, direction vector)
-- Camera selection dropdown
-- Integrated socket communication
+## 📡 Slave_RPI (Slave RPi)
 
-**Usage:**
-```python
-from camera_gui import CameraGUI
+**Purpose:** Encoder data acquisition and feedback
 
-gui = CameraGUI(rpi_port='COM3', rpi_baudrate=9600)
-gui.show()
-```
+**Key Files:**
+- `slave_encoder_interface.py` - Quadrature encoder reading and I2C responses
 
-### `main.py`
-Primary entry point for the application.
+**Hardware:**
+- 8 quadrature encoders for motor position feedback
+- I2C communication with Master RPi
 
-**Usage:**
+## 🚀 Deployment
+
+### Laptop Setup
 ```bash
-python main.py
-```
+# Install dependencies
+pip install PyQt5 opencv-python pyserial
 
-### `arm_gui.py`
-Alternative entry point with function wrapper for programmatic use.
-
-**Usage:**
-```bash
+# Run GUI
+cd GUI_interface
 python arm_gui.py
 ```
 
-## Testing Individual Modules
-
-For comprehensive testing documentation with independent tests for each component, see [TESTING_GUIDE.md](TESTING_GUIDE.md).
-
-### Test UART Handler
+### Master RPi Setup
 ```bash
-python test_uart_handler.py
-```
-Tests UART initialization, connection attempts, and message sending (without requiring a connected RPi).
+# Install dependencies
+pip install smbus
 
-### Test Direction Calculation
+# Run motor control
+cd Master_RPI
+python master_command_processor.py
+```
+
+### Slave RPi Setup
 ```bash
-python test_direction.py
-```
-Tests mouse position to angle/speed conversion (pure math, no hardware needed).
+# Install dependencies
+pip install RPi.GPIO smbus
 
-### Run All Tests
-```bash
-python run_tests.py
-```
-Runs all independent tests and provides a summary report.
-
-### Test Camera
-```bash
-python test_camera.py
-```
-Tests camera detection, frame capture, and FPS measurement.
-
-### Test GUI
-```bash
-python test_gui.py
-```
-Tests GUI initialization and functionality (opens window for 10 seconds).
-
-## Configuration
-
-Edit the RPi UART connection settings in `main.py` or `arm_gui.py`:
-
-```python
-RPi_PORT = 'COM3'      # Your serial port (e.g., 'COM3' on Windows, '/dev/ttyUSB0' on Linux)
-RPi_BAUDRATE = 9600    # Your UART baud rate
+# Run encoder interface
+cd Slave_RPI
+python slave_encoder_interface.py
 ```
 
-## Requirements
+## 🔌 Hardware Connections
 
-```
-PyQt5
-opencv-python (cv2)
-numpy
-pyserial
-```
+### Master RPi I2C Devices
+- PWM Generator: 0x40
+- GPIO Expander 1: 0x20 (motor directions)
+- GPIO Expander 2: 0x21 (limit switches)
+- Slave RPi: 0x50
 
-Install with:
-```bash
-pip install PyQt5 opencv-python numpy pyserial
-```
+### Slave RPi Encoder Pins (BCM)
+See `Slave_RPI/README.md` for encoder pin assignments.
 
-## Usage Controls
+## 📋 Communication Flow
 
-| Control | Action |
-|---------|--------|
-| **Mouse movement** | Control arm direction from center of screen |
-| **K key** | Capture object at mouse position and send to RPi |
-| **ESC key** | Exit application |
-| **Dropdown** | Select camera source |
+1. **Laptop GUI** → UART → **Master RPi**
+2. **Master RPi** → I2C → **Slave Devices** (PWM, GPIO, Slave RPi)
+3. **Slave RPi** → I2C → **Master RPi** (encoder feedback)
 
-## How It Works
+## 🧪 Testing
 
-1. **Camera Feed**: Captures real-time video from selected camera
-2. **Mouse Tracking**: Calculates angle and speed from mouse position relative to screen center
-3. **Overlays**: Displays crosshair at mouse position and direction vector from center
-4. **Communication**: Sends angle/speed continuously and capture commands on demand to RPi
-5. **Modular Design**: Each component can be tested independently
+Each component has independent tests:
+- Laptop: `GUI_interface/test_*.py`
+- Master: `Master_RPI/master_test_motor_controller.py`
+- Slave: Run with simulation mode (no hardware required)
 
-## RPi Server Expected Format
+## ⚙️ Configuration
 
-Your Raspberry Pi UART server should:
-1. Listen on UART serial port (typically `/dev/ttyAMA0` or `/dev/ttyUSB0`)
-2. Use matching baud rate (default: 9600)
-3. Accept messages in format: `ANGLE:<float>,SPEED:<float>\n`
-4. Accept commands in format: `CAPTURE:<int>,<int>\n`
-
-Example Python RPi UART server:
-```python
-import serial
-
-ser = serial.Serial('/dev/ttyAMA0', 9600, timeout=1)
-
-while True:
-    if ser.in_waiting:
-        msg = ser.readline().decode().strip()
-        print(f"Received: {msg}")
-        # Process motor commands here
-```
-
-## Troubleshooting
-
-### No cameras detected
-- Check USB camera connection
-- Try different camera indices (modify `detect_cameras()` range)
-- Test with: `python test_camera.py`
-
-### UART connection fails
-- Verify RPi is running and UART is available
-- Check serial port name (modify `RPi_PORT` in main.py)
-- Verify baud rate matches RPi configuration (modify `RPi_BAUDRATE` in main.py)
-- Ensure USB UART adapter is properly connected (if using USB-to-UART)
-- Test with: `python test_uart_handler.py`
-- On Windows, check Device Manager for COM port assignment
-- On Linux, use `ls -la /dev/tty*` to verify port availability
-- See [TESTING_GUIDE.md](TESTING_GUIDE.md) for detailed troubleshooting
-
-### GUI window doesn't appear
-- Check PyQt5 installation
-- Test GUI with: `python test_gui.py`
-- Ensure display server is available
-
-## Future Enhancements
-
-- [ ] Add frame recording capability
-- [ ] Add object detection/tracking
-- [ ] Add gesture recognition for commands
-- [ ] Add UDP option for faster communication
-- [ ] Add configuration file support
-- [ ] Add logging system
-- [ ] Add calibration interface
+- Master RPi: `Master_RPI/master_config.py`
+- Adjust I2C addresses and pin assignments for your hardware
+- Encoder pins in `Slave_RPI/slave_encoder_interface.py`

@@ -53,16 +53,15 @@ class UartHandler(QObject):
     
     def send_command(self, angle, speed):
         """
-        Send arm direction command to RPi
-        Format: ANGLE:<angle>,SPEED:<speed>
-        
+        Legacy command sender. Still available for backward compatibility.
+        Format: ANGLE:<angle>,SPEED:<speed>\n
         Args:
             angle (float): Direction angle in radians
             speed (float): Speed magnitude (0.0 to 1.0)
         """
         if not self.is_connected or self.serial is None or not self.serial.is_open:
             return
-        
+
         try:
             with self.lock:
                 message = f"ANGLE:{angle:.2f},SPEED:{speed:.2f}\n"
@@ -71,24 +70,45 @@ class UartHandler(QObject):
             print(f"[UART] Send command failed: {e}")
             self.is_connected = False
             self.connection_status.emit(False)
-    
-    def send_capture(self, x, y):
+
+    def send_movement(self, direction, speed, forward):
         """
-        Send capture command with position to RPi
-        Format: CAPTURE:<x>,<y>
-        
+        Send high‑level movement command to RPi.
+        Format: DIR:<direction>,SPEED:<speed>,FWD:<forward>\n
         Args:
-            x (int): X coordinate in frame
-            y (int): Y coordinate in frame
+            direction (str): one of 'forward','backward','left','right','up','down'
+            speed (float): lateral magnitude (0.0-1.0)
+            forward (float): forward/backward component (0.0-1.0)
+        """
+        if not self.is_connected or self.serial is None or not self.serial.is_open:
+            return
+
+        try:
+            with self.lock:
+                # ensure values are in range
+                s = max(0.0, min(speed, 1.0))
+                f = max(0.0, min(forward, 1.0))
+                message = f"DIR:{direction.upper()},SPEED:{s:.2f},FWD:{f:.2f}\n"
+                self.serial.write(message.encode())
+        except Exception as e:
+            print(f"[UART] Send movement failed: {e}")
+            self.is_connected = False
+            self.connection_status.emit(False)
+    
+    def send_capture(self):
+        """
+        Send capture command to RPi
+        Format: CAPTURE
+        
         """
         if not self.is_connected or self.serial is None or not self.serial.is_open:
             return
         
         try:
             with self.lock:
-                message = f"CAPTURE:{x},{y}\n"
+                message = "CAPTURE\n"
                 self.serial.write(message.encode())
-                print(f"[UART] Capture command sent: ({x}, {y})")
+                print("[UART] Capture command sent")
         except Exception as e:
             print(f"[UART] Send capture failed: {e}")
             self.is_connected = False

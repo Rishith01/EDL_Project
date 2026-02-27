@@ -89,45 +89,50 @@ class CameraGUI(QMainWindow):
         self.mouse_y = y
         
     def on_mouse_clicked(self, x, y):
-        """Handle mouse click to determine section"""
+        """Handle mouse click and log the computed movement command"""
         if self.label_width == 0 or self.label_height == 0:
             return
-        
-        # Center of display
+
+        direction, speed, forward = self.compute_command_from_point(x, y)
+        print(f"[Click] Command -> dir: {direction}, speed: {speed:.2f}, forward:{forward:.2f}")
+
+    def compute_command_from_point(self, x, y):
+        """
+        Compute discrete direction, speed magnitude and forward component for a specific point.
+
+        The central box produces a pure forward command. Outside the box we pick the
+        cardinal direction (left/right/up/down) based on the larger of dx/dy. The forward
+        component is a continuous function of the distance from center: it begins at 1.0 in
+        the centre and falls linearly to 0.0 at the edge of the display (i.e. 1 - speed).
+
+        Returns:
+            tuple: (direction:str, speed:float, forward:float)
+        """
+        # centre of display
         cx = self.label_width // 2
         cy = self.label_height // 2
-        
-        # Vector from center to click
         dx = x - cx
-        dy = cy - y  # Invert Y
-        
-        if dx == 0 and dy == 0:
-            section = "center"
+        dy = cy - y  # inverted Y
+
+        # compute normalized magnitude and speed
+        distance = math.hypot(dx, dy)
+        max_dist = math.hypot(cx, cy)
+        speed = min(distance / max_dist, 1.0) if max_dist > 0 else 0.0
+
+        # calculate forward portion (more offset -> less forward)
+        forward = max(0.0, 1.0 - speed)
+
+        # central box check (50% of smaller dimension - larger target area)
+        box_half = int(min(cx, cy) * 0.5)
+        if abs(dx) <= box_half and abs(dy) <= box_half:
+            return "forward", 0.0, 1.0
+
+        # determine cardinal direction based on greater absolute component
+        if abs(dx) > abs(dy):
+            direction = "right" if dx > 0 else "left"
         else:
-            angle = math.degrees(math.atan2(dy, dx))
-            if angle < 0:
-                angle += 360
-            
-            # Determine section
-            if 0 <= angle < 22.5 or 337.5 <= angle < 360:
-                section = "right"
-            elif 22.5 <= angle < 67.5:
-                section = "up-right"
-            elif 67.5 <= angle < 112.5:
-                section = "up"
-            elif 112.5 <= angle < 157.5:
-                section = "up-left"
-            elif 157.5 <= angle < 202.5:
-                section = "left"
-            elif 202.5 <= angle < 247.5:
-                section = "down-left"
-            elif 247.5 <= angle < 292.5:
-                section = "down"
-            elif 292.5 <= angle < 337.5:
-                section = "down-right"
-        
-        print(f"[Click] Section: {section} (angle: {angle:.1f}°)")
-        
+            direction = "up" if dy > 0 else "down"
+        return direction, speed, forward
     def _setup_ui(self):
         """Setup user interface components"""
         # Title label
@@ -274,29 +279,15 @@ class CameraGUI(QMainWindow):
         print(f"[Capture] Object captured at ({frame_x}, {frame_y})")
         
         # Send capture command to RPi
-        self.uart_handler.send_capture(frame_x, frame_y)
+        self.uart_handler.send_capture()
 
+    # the previous compute_direction method is no longer used; commands are
+    # derived from both direction and forward component via compute_command_from_point.
+
+    # keep the old method placeholder for reference
     def compute_direction(self):
-        """
-        Calculate arm direction based on mouse position
-        
-        Returns:
-            tuple: (angle in radians, speed magnitude 0.0-1.0)
-        """
-        # Center of display
-        label_cx = self.label_width // 2
-        label_cy = self.label_height // 2
-        
-        # Vector from center to mouse
-        dx = self.mouse_x - label_cx
-        dy = label_cy - self.mouse_y  # Invert Y for correct coordinate system
-
-        angle = math.atan2(dy, dx)
-        magnitude = math.sqrt(dx*dx + dy*dy)
-        max_dist = math.sqrt(label_cx*label_cx + label_cy*label_cy)
-        speed = min(magnitude / max_dist, 1.0) if max_dist > 0 else 0.0
-
-        return angle, speed
+        """DEPRECATED - retained for compatibility but not used"""
+        return 0.0, 0.0
 
     def update_frame(self):
         """Update camera frame and display with overlay"""
@@ -345,9 +336,9 @@ class CameraGUI(QMainWindow):
         self.label_width = scaled_pixmap.width()
         self.label_height = scaled_pixmap.height()
 
-        # Compute and send direction to RPi
-        angle, speed = self.compute_direction()
-        self.uart_handler.send_command(angle, speed)
+        # Compute and send directional command to RPi based on current mouse location
+        direction, speed, forward = self.compute_command_from_point(self.mouse_x, self.mouse_y)
+        self.uart_handler.send_movement(direction, speed, forward)
 
     def resizeEvent(self, event):
         """Handle window resize to update display immediately"""
