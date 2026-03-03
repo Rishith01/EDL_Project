@@ -189,7 +189,7 @@ python test_uart_handler.py
 #### What It Tests
 | Test | Purpose | Expected Result |
 |------|---------|-----------------|
-| Initialization | Create UartHandler object | Handler object created |
+| Initialization | Create UARTHandler object | Handler object created |
 | Connection | Open serial connection | Connected if device present, or graceful fail |
 | Send command | Send direction message | `ANGLE:X,SPEED:Y\n` format |
 | Send capture | Send capture message | `CAPTURE:X,Y\n` format |

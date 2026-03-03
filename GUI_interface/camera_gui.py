@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import QTimer, Qt, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen
 
-from uart_handler import UartHandler
+from uart_handler import UARTHandler
 
 
 class CameraLabel(QLabel):
@@ -60,7 +60,7 @@ class CameraGUI(QMainWindow):
         self.captured_roi = None
 
         # UART communication
-        self.uart_handler = UartHandler(rpi_port, rpi_baudrate)
+        self.uart_handler = UARTHandler(rpi_port, rpi_baudrate)
         self.uart_handler.connection_status.connect(self.on_connection_status)
         
         # Start UART connection in background thread

@@ -8,7 +8,7 @@ import threading
 from PyQt5.QtCore import QObject, pyqtSignal
 
 
-class UartHandler(QObject):
+class UARTHandler(QObject):
     """Handles UART serial communication with RPi in a separate thread"""
     connection_status = pyqtSignal(bool)  # Signal: True=connected, False=disconnected
     
