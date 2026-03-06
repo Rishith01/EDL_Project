@@ -69,6 +69,45 @@ class MotorController:
                     self.limit_switches[i] = bool(data[idx] & (1 << i))
 
     # ------------------------------------------------
+    # LIMIT SWITCH CHECKING
+    # ------------------------------------------------
+
+    def _is_motion_blocked(self, motor_id, direction):
+        """
+        Check if a motor motion in the given direction is blocked by an active limit switch.
+        Returns: (is_blocked, blocking_switches)
+        """
+        key = (motor_id, direction.value)
+        if key not in DIRECTIONAL_LIMIT_SWITCHES:
+            return False, []
+        
+        blocking_switches = DIRECTIONAL_LIMIT_SWITCHES[key]
+        for switch_id in blocking_switches:
+            if self.limit_switches[switch_id]:
+                return True, blocking_switches
+        
+        return False, []
+
+    def _compensate_blocked_motion(self, motor_id, direction, speed):
+        """
+        When a motor is blocked by a limit switch, try to compensate by moving upper modules
+        in the opposite direction to relieve pressure on the blocked link.
+        """
+        if motor_id not in MODULE_HIERARCHY or not MODULE_HIERARCHY[motor_id]:
+            return  # No upper modules to compensate
+        
+        compensation_strength = speed * 0.3  # Use 30% of blocked motion for compensation
+        opposite_direction = MotorDirection.REVERSE if direction == MotorDirection.FORWARD else MotorDirection.FORWARD
+        
+        # Try to move upper modules in opposite direction to relieve pressure
+        for upper_motor in MODULE_HIERARCHY[motor_id]:
+            if not self._is_motion_blocked(upper_motor, opposite_direction)[0]:
+                self.set_motor_speed(upper_motor, compensation_strength, opposite_direction)
+                if DEBUG_MODE:
+                    print(f"[MotorController] Compensating blocked motor {motor_id} by moving upper motor {upper_motor} in opposite direction")
+                return
+    
+    # ------------------------------------------------
     # MOTOR CONTROL
     # ------------------------------------------------
 
@@ -77,7 +116,24 @@ class MotorController:
         if not 0 <= motor_id < NUM_MOTORS:
             return
 
-        pwm_value = int(speed * PWM_MAX_VALUE)
+        # Check if motion is blocked by limit switches (only when trying to move, not on STOP)
+        if direction != MotorDirection.STOP:
+            is_blocked, blocking_switches = self._is_motion_blocked(motor_id, direction)
+            
+            if is_blocked:
+                if DEBUG_MODE:
+                    print(f"[MotorController] Motor {motor_id} motion in direction {direction} blocked by limit switches {blocking_switches}")
+                
+                # Try to compensate with upper modules
+                self._compensate_blocked_motion(motor_id, direction, speed)
+                
+                # Stop the blocked motor
+                pwm_value = 0
+                direction = MotorDirection.STOP
+            else:
+                pwm_value = int(speed * PWM_MAX_VALUE)
+        else:
+            pwm_value = 0
 
         self.motor_speeds[motor_id] = pwm_value
         self.motor_directions[motor_id] = direction
