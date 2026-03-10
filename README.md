@@ -127,3 +127,6 @@ Each component has independent tests:
 - Master RPi: `Master_RPI/master_config.py`
 - Adjust I2C addresses and pin assignments for your hardware
 - Encoder pins in `Slave_RPI/slave_encoder_interface.py`
+## 🧠 VS Code + MicroPython IntelliSense
+
+If VS Code reports unresolved MicroPython imports (`machine`, `uasyncio`, etc.), follow `docs/micropython_vscode_setup.md`.
