@@ -31,7 +31,9 @@ async def command_listener(callback):
             if ch == b'\n' or ch == b'\r':
                 if line:
                     try:
-                        callback(line.decode())
+                        result = callback(line.decode())
+                        if hasattr(result, "__await__"):
+                            await result
                     except Exception as e:
                         print("UART callback error", e)
                 line = b""

@@ -8,6 +8,10 @@ Configuration file for Robotic Arm Motor Control System
 UART_PORT = '/dev/ttyAMA0'  # Raspberry Pi UART port
 UART_BAUDRATE = 9600
 
+# Dedicated UART used for master <-> slave/motor bus packets
+MOTOR_BUS_UART_PORT = '/dev/serial0'
+MOTOR_BUS_BAUDRATE = 115200
+
 # ================================================
 # MOTOR CONFIGURATION
 # ================================================
@@ -77,6 +81,23 @@ MODULE_HIERARCHY = {
     7: [],           # Tentacle has no upper modules
     8: [],           # Tentacle has no upper modules
 }
+
+
+# ================================================
+# ENCODER SETUP DETAILS (SLAVE SIDE REFERENCE)
+# ================================================
+# GPIO BCM pin pairs used by the slave encoder interface.
+# Keep this in sync with Slave_RPI/slave_encoder_interface.py.
+SLAVE_ENCODER_PINS = [
+    (17, 18),
+    (22, 23),
+    (24, 25),
+    (5, 6),
+    (12, 13),
+    (19, 20),
+    (16, 26),
+    (21, 27),
+]
 
 # ================================================
 # DEBUG SETTINGS

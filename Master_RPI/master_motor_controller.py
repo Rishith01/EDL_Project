@@ -14,7 +14,7 @@ class MotorDirection(Enum):
 
 class MotorController:
 
-    def __init__(self, uart_port="/dev/serial0", baudrate=115200):
+    def __init__(self, uart_port=MOTOR_BUS_UART_PORT, baudrate=MOTOR_BUS_BAUDRATE):
 
         self.serial = serial.Serial(
             port=uart_port,
@@ -194,6 +194,31 @@ class MotorController:
             self.set_motor_speed(3, speed_val * 0.7, MotorDirection.REVERSE)
             self.set_motor_speed(4, speed_val * 0.7, MotorDirection.REVERSE)
 
+
+    def retrace_forward_history(self):
+        """Retrace stored forward motions in reverse order."""
+        if not self.forward_history:
+            return
+
+        # replay in reverse to pull the lead screw back along the prior path
+        for forward in reversed(self.forward_history):
+            self.set_motor_speed(LEAD_SCREW_MOTOR, forward, MotorDirection.REVERSE)
+            time.sleep(0.1)
+
+        self.set_motor_speed(LEAD_SCREW_MOTOR, 0, MotorDirection.STOP)
+        self.forward_history.clear()
+
+    def get_status(self):
+        """Return a snapshot of motor-controller state for monitoring."""
+        return {
+            'motor_speeds': self.motor_speeds.copy(),
+            'motor_directions': [d.name for d in self.motor_directions],
+            'encoder_values': self.encoder_values.copy(),
+            'limit_switches': self.limit_switches.copy(),
+            'running': self.running,
+            'serial_connected': bool(self.serial and self.serial.is_open),
+        }
+
     # ------------------------------------------------
     # CONTROL LOOP
     # ------------------------------------------------
@@ -220,6 +245,18 @@ class MotorController:
             except Exception as e:
                 print("Control loop error:", e)
                 time.sleep(1.0)
+
+    def initialize_hardware(self):
+        """Backward-compatible hardware setup hook for older callers."""
+        return bool(self.serial and self.serial.is_open)
+
+    def read_encoders(self):
+        """Return latest encoder values cached from status packets."""
+        return self.encoder_values.copy()
+
+    def read_limit_switches(self):
+        """Return latest limit switch states cached from status packets."""
+        return self.limit_switches.copy()
 
     def emergency_stop(self):
         for i in range(NUM_MOTORS):

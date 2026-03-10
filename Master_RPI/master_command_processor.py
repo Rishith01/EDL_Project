@@ -14,29 +14,21 @@ from master_config import *
 class CommandProcessor:
     """Processes commands from GUI and controls motor system"""
 
-    def __init__(self, uart_port=UART_PORT, uart_baudrate=UART_BAUDRATE,
-                 pwm_addr=PWM_GENERATOR_ADDRESS, gpio1_addr=GPIO_EXPANDER_1_ADDRESS,
-                 gpio2_addr=GPIO_EXPANDER_2_ADDRESS, slave_rpi_addr=SLAVE_RPI_ADDRESS):
+    def __init__(self, uart_port=UART_PORT, uart_baudrate=UART_BAUDRATE):
         """
         Initialize command processor
 
         Args:
             uart_port: UART port for GUI communication
             uart_baudrate: UART baud rate
-            pwm_addr: PWM generator I2C address
-            gpio1_addr: GPIO expander 1 I2C address
-            gpio2_addr: GPIO expander 2 I2C address
-            slave_rpi_addr: Slave RPi I2C address
         """
         self.uart_port = uart_port
         self.uart_baudrate = uart_baudrate
 
-        # Initialize motor controller
+        # Initialize motor controller on dedicated slave/motor UART bus
         self.motor_controller = MotorController(
-            pwm_address=pwm_addr,
-            gpio_expander_1_address=gpio1_addr,
-            gpio_expander_2_address=gpio2_addr,
-            slave_rpi_address=slave_rpi_addr
+            uart_port=MOTOR_BUS_UART_PORT,
+            baudrate=MOTOR_BUS_BAUDRATE
         )
 
         # UART communication
@@ -53,10 +45,6 @@ class CommandProcessor:
     def start(self):
         """Start the command processor"""
         print("[CommandProcessor] Starting...")
-
-        # Initialize motor controller hardware
-        if not self.motor_controller.initialize_hardware():
-            print("[CommandProcessor] Hardware initialization failed - running in simulation mode")
 
         # Start motor control loop
         self.motor_controller.start_control_loop()
@@ -196,11 +184,7 @@ def main():
     # Default configuration - adjust for your setup
     processor = CommandProcessor(
         uart_port=UART_PORT,
-        uart_baudrate=UART_BAUDRATE,
-        pwm_addr=PWM_GENERATOR_ADDRESS,
-        gpio1_addr=GPIO_EXPANDER_1_ADDRESS,
-        gpio2_addr=GPIO_EXPANDER_2_ADDRESS,
-        slave_rpi_addr=SLAVE_RPI_ADDRESS
+        uart_baudrate=UART_BAUDRATE
     )
 
     try:

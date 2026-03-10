@@ -3,6 +3,7 @@ Entry point for the master Pico W firmware.  Sets up peripherals and starts
 uasyncio tasks.
 """
 import uasyncio as asyncio
+import config
 from config import DEBUG, CONTROL_LOOP_HZ, INT_MASTER_TO_SLAVE
 from uart_handler import command_listener, send_response
 from motor_driver import set_speed, emergency_stop
