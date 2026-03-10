@@ -2,6 +2,7 @@
 Entry point for slave Pico W firmware.
 """
 import uasyncio as asyncio
+import config
 from config import MASTER_INT_PIN, DEBUG
 from encoder import QuadratureEncoder
 from i2c_slave import read_command, write_status
